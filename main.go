@@ -10,7 +10,7 @@ import (
 func main() {
 	apiKey := os.Getenv("YOUTUBE_API_KEY")
 	gistID := os.Getenv("GIST_ID")
-	gistToken := os.Getenv("GIST_TOKEN")
+	gistToken := os.Getenv("PAT")
 
 	playlists, err := LoadPlaylists("playlists.json")
 	if err != nil {
