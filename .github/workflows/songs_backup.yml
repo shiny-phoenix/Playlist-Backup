@@ -12,6 +12,9 @@ jobs:
         - name: Checkout code
           uses: actions/checkout@v4
 
+        - name: check if token is valid
+          run: curl -H "Authorization: token ${{ secrets.PAT }}" https://api.github.com/gists
+
         - name: Set up Go
           uses: actions/setup-go@v5
           with:
