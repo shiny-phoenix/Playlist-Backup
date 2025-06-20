@@ -21,7 +21,7 @@ jobs:
           env:
             YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
             GIST_ID: ${{ secrets.GIST_ID }}
-            GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+            GIST_TOKEN: ${{ secrets.PAT }}
           run: go run .
 
         # - name: Fetch songs via Youtube API
