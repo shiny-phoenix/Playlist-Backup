@@ -144,3 +144,10 @@ func CompareSongs(oldList, newList []string) string {
 	return output.String()
 }
 
+func cleanLine(line string) string {
+	line = strings.TrimSpace(line)
+	if strings.HasPrefix(line, "➕") || strings.HasPrefix(line, "❌") || strings.HasPrefix(line, "-") {
+		line = strings.TrimSpace(line[1:])
+	}
+	return line
+}
