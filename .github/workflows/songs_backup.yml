@@ -22,7 +22,7 @@ jobs:
             YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
             GIST_ID: ${{ secrets.GIST_ID }}
             GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
-          run: go run main.go
+          run: go run .
 
         # - name: Fetch songs via Youtube API
         #   run: |

@@ -12,12 +12,12 @@ func main() {
 	gistID := os.Getenv("GIST_ID")
 	gistToken := os.Getenv("GIST_TOKEN")
 
-	playlists, err := loadPlaylists("playlists.json")
+	playlists, err := LoadPlaylists("playlists.json")
 	if err != nil {
 		panic(err)
 	}
 
-	gistData, err := getGist(gistID, gistToken)
+	gistData, err := GetGist(gistID, gistToken)
 	if err != nil {
 		panic(err)
 	}
@@ -25,7 +25,7 @@ func main() {
 	updates := make(map[string]string)
 
 	for _, p := range playlists {
-		newList, err := fetchPlaylistItems(apiKey, p.ID)
+		newList, err := FetchPlaylistItems(apiKey, p.ID)
 		if err != nil {
 			fmt.Printf("Failed fetching %s: %v\n", p.Name, err)
 			continue
@@ -33,10 +33,10 @@ func main() {
 
 		oldContent := gistData.Files[p.Name+".txt"].Content
 		oldList := strings.Split(strings.TrimSpace(oldContent), "\n")
-		updates[p.Name+".txt"] = compareSongs(oldList, newList)
+		updates[p.Name+".txt"] = CompareSongs(oldList, newList)
 	}
 
-	if err := updateGist(gistID, updates, gistToken); err != nil {
+	if err := UpdateGist(gistID, updates, gistToken); err != nil {
 		panic(err)
 	}
 }

@@ -21,7 +21,7 @@ type GistResponse struct {
 	} `json:"files"`
 }
 
-func loadPlaylists(path string) ([]PlaylistConfig, error) {
+func LoadPlaylists(path string) ([]PlaylistConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ type VideoItem struct {
 	Title string `json:"title"`
 }
 
-func fetchPlaylistItems(apiKey, playlistId string) ([]string, error) {
+func FetchPlaylistItems(apiKey, playlistId string) ([]string, error) {
 	var titles []string
 	baseURL := "https://www.googleapis.com/youtube/v3/playlistItems"
 	pageToken := ""
@@ -78,7 +78,7 @@ func fetchPlaylistItems(apiKey, playlistId string) ([]string, error) {
 	return titles, nil
 }
 
-func getGist(gistID, token string) (GistResponse, error) {
+func GetGist(gistID, token string) (GistResponse, error) {
 	req, _ := http.NewRequest("GET", "https://api.github.com/gists/"+gistID, nil)
 	req.Header.Set("Authorization", "token "+token)
 
@@ -93,7 +93,7 @@ func getGist(gistID, token string) (GistResponse, error) {
 	return gist, err
 }
 
-func updateGist(gistID string, updates map[string]string, token string) error {
+func UpdateGist(gistID string, updates map[string]string, token string) error {
 	files := map[string]map[string]string{}
 	for k, v := range updates {
 		files[k] = map[string]string{"content": v}
@@ -117,7 +117,7 @@ func updateGist(gistID string, updates map[string]string, token string) error {
 	return nil
 }
 
-func compareSongs(oldList, newList []string) string {
+func CompareSongs(oldList, newList []string) string {
 	oldMap := make(map[string]bool)
 	newMap := make(map[string]bool)
 	var output strings.Builder
