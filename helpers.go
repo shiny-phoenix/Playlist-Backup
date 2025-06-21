@@ -4,56 +4,23 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 )
 
-type PlaylistConfig struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
-type GistResponse struct {
-	Files map[string]struct {
-		Content string `json:"content"`
-	} `json:"files"`
-}
-
-func LoadPlaylists(path string) ([]PlaylistConfig, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var cfg []PlaylistConfig
-	err = json.Unmarshal(data, &cfg)
-	return cfg, err
-}
-
-type VideoItem struct {
-	Title string `json:"title"`
-}
-
-func FetchPlaylistItems(apiKey, playlistId string) ([]string, error) {
+func getPlaylistTitles(apiKey, playlistID string) ([]string, error) {
 	var titles []string
 	baseURL := "https://www.googleapis.com/youtube/v3/playlistItems"
 	pageToken := ""
-
 	for {
-		url := fmt.Sprintf(
-			"%s?part=snippet&maxResults=50&playlistId=%s&key=%s&pageToken=%s",
-			baseURL, playlistId, apiKey, pageToken,
-		)
-
-		resp, err := http.Get(url)
+		reqURL := fmt.Sprintf("%s?part=snippet&maxResults=50&playlistId=%s&key=%s&pageToken=%s",
+			baseURL, playlistID, apiKey, pageToken)
+		resp, err := http.Get(reqURL)
 		if err != nil {
 			return nil, err
 		}
 		defer resp.Body.Close()
-
-		body, _ := io.ReadAll(resp.Body)
-
 		var result struct {
 			NextPageToken string `json:"nextPageToken"`
 			Items         []struct {
@@ -62,14 +29,12 @@ func FetchPlaylistItems(apiKey, playlistId string) ([]string, error) {
 				} `json:"snippet"`
 			} `json:"items"`
 		}
-		if err := json.Unmarshal(body, &result); err != nil {
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 			return nil, err
 		}
-
 		for _, item := range result.Items {
 			titles = append(titles, item.Snippet.Title)
 		}
-
 		if result.NextPageToken == "" {
 			break
 		}
@@ -78,76 +43,154 @@ func FetchPlaylistItems(apiKey, playlistId string) ([]string, error) {
 	return titles, nil
 }
 
-func GetGist(gistID, token string) (GistResponse, error) {
+func getGistFiles(gistID, pat string) (map[string]string, error) {
 	req, _ := http.NewRequest("GET", "https://api.github.com/gists/"+gistID, nil)
-	req.Header.Set("Authorization", "token "+token)
-
-	resp, err := http.DefaultClient.Do(req)
+	req.Header.Set("Authorization", "Bearer "+pat)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	client := &http.Client{}
+	res, err := client.Do(req)
 	if err != nil {
-		return GistResponse{}, err
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	var gist GistResponse
-	err = json.NewDecoder(resp.Body).Decode(&gist)
-	return gist, err
+	defer res.Body.Close()
+	var gist struct {
+		Files map[string]struct {
+			Filename string `json:"filename"`
+			Content  string `json:"content"`
+		} `json:"files"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&gist); err != nil {
+		return nil, err
+	}
+	files := make(map[string]string)
+	for name, file := range gist.Files {
+		files[name] = file.Content
+	}
+	return files, nil
 }
 
-func UpdateGist(gistID string, updates map[string]string, token string) error {
-	files := map[string]map[string]string{}
-	for k, v := range updates {
-		files[k] = map[string]string{"content": v}
-	}
-	body := map[string]interface{}{"files": files}
-	jsonData, _ := json.Marshal(body)
+func diffPlaylist(oldContent string, currentTitles []string, playlistName string) string {
+	oldSongs := make(map[string]bool)
+	currentSet := make(map[string]bool)
 
-	req, _ := http.NewRequest("PATCH", "https://api.github.com/gists/"+gistID, bytes.NewBuffer(jsonData))
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Content-Type", "application/json")
+	// Extract old songs from the Gist content
+	if oldContent != "" {
+		lines := strings.Split(oldContent, "\n")
+		for _, line := range lines[1:] { // skip header
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "##") {
+				continue
+			}
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
+			// Remove index prefix like "1. "
+			parts := strings.SplitN(line, ".", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			song := parts[1][5:]
+
+			song = cleanSong(song)
+			oldSongs[song] = true
+		}
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("Gist update failed: %s", string(b))
+
+	// Build current songs set
+	for _, title := range currentTitles {
+		currentSet[cleanSong(title)] = true
 	}
+
+	var outputLines []string
+	outputLines = append(outputLines, "## Playlist: "+playlistName)
+	index := 1
+
+	// Step 1: Show removed songs (in old but not in current)
+	for oldTitle := range oldSongs {
+		if !currentSet[oldTitle] {
+			outputLines = append(outputLines, fmt.Sprintf("%d. ❌ %s", index, oldTitle))
+			index++
+		}
+	}
+
+	// Step 2: Show all current songs with appropriate markers
+	for _, title := range currentTitles {
+		if oldSongs[title] {
+			// Song exists in both ✅ marker
+			outputLines = append(outputLines, fmt.Sprintf("%d. ✅ %s", index, title))
+		} else {
+			// New song - add ➕ marker
+			outputLines = append(outputLines, fmt.Sprintf("%d. ➕ %s", index, title))
+		}
+		index++
+	}
+
+	return strings.Join(outputLines, "\n") + "\n"
+}
+
+func updateGist(gistID, pat string, updatedFiles map[string]string, oldFiles map[string]string) error {
+	client := &http.Client{}
+
+	// Step 1: Delete all existing .md files
+	for filename := range oldFiles {
+		if strings.HasSuffix(filename, ".md") {
+			fmt.Println("🗑️ Deleting file:", filename)
+
+			deletePayload := map[string]interface{}{
+				"files": map[string]interface{}{
+					filename: nil,
+				},
+			}
+			deleteJSON, _ := json.Marshal(deletePayload)
+
+			req, _ := http.NewRequest("PATCH", "https://api.github.com/gists/"+gistID, bytes.NewBuffer(deleteJSON))
+			req.Header.Set("Authorization", "Bearer "+pat)
+			req.Header.Set("Accept", "application/vnd.github+json")
+
+			resp, err := client.Do(req)
+			if err != nil {
+				return fmt.Errorf("failed to delete %s: %v", filename, err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode >= 300 {
+				body, _ := ioutil.ReadAll(resp.Body)
+				return fmt.Errorf("delete failed for %s: %s", filename, body)
+			}
+		}
+	}
+
+	// Step 2: Create each new file fresh
+	for filename, content := range updatedFiles {
+		fmt.Println("📝 Creating file:", filename)
+
+		createPayload := map[string]interface{}{
+			"files": map[string]interface{}{
+				filename: map[string]string{"content": content},
+			},
+		}
+		createJSON, _ := json.Marshal(createPayload)
+
+		req, _ := http.NewRequest("PATCH", "https://api.github.com/gists/"+gistID, bytes.NewBuffer(createJSON))
+		req.Header.Set("Authorization", "Bearer "+pat)
+		req.Header.Set("Accept", "application/vnd.github+json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to create %s: %v", filename, err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode >= 300 {
+			body, _ := ioutil.ReadAll(resp.Body)
+			return fmt.Errorf("create failed for %s: %s", filename, body)
+		}
+	}
+
 	return nil
 }
 
-func CompareSongs(oldList, newList []string) string {
-	oldMap := make(map[string]bool)
-	newMap := make(map[string]bool)
-	var output strings.Builder
-
-	for _, s := range oldList {
-		oldMap[s] = true
-	}
-	for _, s := range newList {
-		newMap[s] = true
-	}
-
-	for _, s := range oldList {
-		if !newMap[s] {
-			output.WriteString(fmt.Sprintf("- ❌ ~~%s~~\n", s))
-		} else {
-			output.WriteString(fmt.Sprintf("- %s\n", s))
-		}
-	}
-	for _, s := range newList {
-		if !oldMap[s] {
-			output.WriteString(fmt.Sprintf("- ➕ **%s**\n", s))
-		}
-	}
-	return output.String()
-}
-
-func cleanLine(line string) string {
-	line = strings.TrimSpace(line)
-	if strings.HasPrefix(line, "➕") || strings.HasPrefix(line, "❌") || strings.HasPrefix(line, "-") {
-		line = strings.TrimSpace(line[1:])
-	}
-	return line
+func cleanSong(title string) string {
+	// Remove known invisible characters
+	title = strings.TrimSpace(title)
+	title = strings.TrimPrefix(title, "\uFEFF")    // Byte Order Mark (BOM)
+	title = strings.ReplaceAll(title, "\u200B", "") // Zero-width space
+	title = strings.ReplaceAll(title, "\r", "")     // Windows carriage return
+	return title
 }

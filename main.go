@@ -1,70 +1,82 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"sort"
+	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 )
 
+type Playlist struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+
 func main() {
+
 	apiKey := os.Getenv("YOUTUBE_API_KEY")
+	if apiKey == "" {
+		log.Fatal("YOUTUBE_API_KEY is not set")
+	}
 	gistID := os.Getenv("GIST_ID")
-	gistToken := os.Getenv("PAT")
-
-	playlists, err := LoadPlaylists("playlists.json")
-	if err != nil {
-		panic(err)
+	if gistID == "" {
+		log.Fatal("GIST_ID is not set")
+	}
+	pat := os.Getenv("PAT")
+	if pat == "" {
+		log.Fatal("PAT is not set")
 	}
 
-	gistData, err := GetGist(gistID, gistToken)
+	// Load playlists.json
+	var playlists []Playlist
+	data, err := ioutil.ReadFile("playlists.json")
 	if err != nil {
-		panic(err)
+		log.Fatalf("Error reading playlists.json: %v", err)
+	}
+	if err := json.Unmarshal(data, &playlists); err != nil {
+		log.Fatalf("Error parsing playlists.json: %v", err)
 	}
 
-	updates := make(map[string]string)
+	// Get existing gist files
+	oldFilesContent, err := getGistFiles(gistID, pat)
+	if err != nil {
+		log.Fatalf("Error fetching Gist: %v", err)
+	}
 
-	for _, p := range playlists {
-		newList, err := FetchPlaylistItems(apiKey, p.ID)
+	updatedFiles := make(map[string]string)
+	oldFilenames := make(map[string]string)
+	for filename, content := range oldFilesContent {
+		oldFilenames[filename] = content
+	}
+
+	for _, pl := range playlists {
+		fmt.Printf("▶ Processing playlist: %q\n", pl.Name)
+		titles, err := getPlaylistTitles(apiKey, pl.ID)
 		if err != nil {
-			fmt.Printf("⚠️ Failed fetching %s: %v\n", p.Name, err)
+			log.Printf("❌ Error fetching playlist %s: %v", pl.Name, err)
 			continue
 		}
+		fmt.Printf("✔ Fetched %d videos from YouTube\n", len(titles))
 
-		fileName := p.Name + ".md"
-		oldContent := ""
-		if fileMeta, exists := gistData.Files[fileName]; exists {
-			oldContent = fileMeta.Content
-		}
+		filename := pl.Name + ".md"
+		oldContent := oldFilesContent[filename] // empty if not exist
+		newContent := diffPlaylist(oldContent, titles, pl.Name)
+		updatedFiles[filename] = newContent
 
-		existingSongs := map[string]bool{}
-		var finalLines []string
-
-		if strings.TrimSpace(oldContent) != "" {
-			for _, line := range strings.Split(oldContent, "\n") {
-				clean := cleanLine(line)
-				if clean != "" && !existingSongs[clean] {
-					existingSongs[clean] = true
-					finalLines = append(finalLines, "- "+clean)
-				}
-			}
-		}
-
-		for _, song := range newList {
-			song = strings.TrimSpace(song)
-			if _, exists := existingSongs[song]; !exists {
-				existingSongs[song] = true
-				finalLines = append(finalLines, "- "+song)
-			}
-		}
-
-		sort.Strings(finalLines)
-		updates[fileName] = "## Playlist: " + p.Name + "\n\n" + strings.Join(finalLines, "\n")
+		fmt.Printf("📄 Prepared %d lines for %s\n\n", strings.Count(newContent, "\n"), filename)
 	}
 
-	if err := UpdateGist(gistID, updates, gistToken); err != nil {
-		panic(err)
+	for key, value := range updatedFiles{
+		fmt.Println(key + " : ")
+		fmt.Println(value)
 	}
 
-	fmt.Println("✅ Gist updated successfully!")
+	if err := updateGist(gistID, pat, updatedFiles, oldFilenames); err != nil {
+		log.Fatalf("Failed to update Gist: %v", err)
+	}
+
+	fmt.Println("✅ Gist successfully updated with all playlists.")
 }

@@ -12,13 +12,10 @@ jobs:
         - name: Checkout code
           uses: actions/checkout@v4
 
-        - name: check if token is valid
-          run: curl -H "Authorization: token ${{ secrets.PAT }}" https://api.github.com/gists
-
         - name: Set up Go
           uses: actions/setup-go@v5
           with:
-            go-version: '1.22'
+            go-version: '1.23'
 
         - name: Run Playlist Tracker
           env:
@@ -26,11 +23,3 @@ jobs:
             GIST_ID: ${{ secrets.GIST_ID }}
             GIST_TOKEN: ${{ secrets.PAT }}
           run: go run .
-
-        # - name: Fetch songs via Youtube API
-        #   run: |
-            
-
-        # # - name: Download previous list of songs from Gist
-        # # - name: Compare and highlight removed/added songs
-        # # - name: Update Gist with modified playlist file
