@@ -132,7 +132,7 @@ func updateGist(gistID, pat string, updatedFiles map[string]string, oldFiles map
 	// Step 1: Delete all existing .md files
 	for filename := range oldFiles {
 		if strings.HasSuffix(filename, ".md") {
-			fmt.Println("🗑️ Deleting file:", filename)
+			fmt.Println("Deleting file:", filename)
 
 			deletePayload := map[string]interface{}{
 				"files": map[string]interface{}{
@@ -159,7 +159,7 @@ func updateGist(gistID, pat string, updatedFiles map[string]string, oldFiles map
 
 	// Step 2: Create each new file fresh
 	for filename, content := range updatedFiles {
-		fmt.Println("📝 Creating file:", filename)
+		fmt.Println("Creating file:", filename)
 
 		createPayload := map[string]interface{}{
 			"files": map[string]interface{}{
