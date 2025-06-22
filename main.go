@@ -25,7 +25,7 @@ func main() {
 	if gistID == "" {
 		log.Fatal("GIST_ID is not set")
 	}
-	pat := os.Getenv("PAT")
+	pat := os.Getenv("GIST_TOKEN")
 	if pat == "" {
 		log.Fatal("PAT is not set")
 	}
@@ -53,20 +53,20 @@ func main() {
 	}
 
 	for _, pl := range playlists {
-		fmt.Printf("▶ Processing playlist: %q\n", pl.Name)
+		fmt.Printf("Processing playlist: %q\n", pl.Name)
 		titles, err := getPlaylistTitles(apiKey, pl.ID)
 		if err != nil {
-			log.Printf("❌ Error fetching playlist %s: %v", pl.Name, err)
+			log.Printf("Error fetching playlist %s: %v", pl.Name, err)
 			continue
 		}
-		fmt.Printf("✔ Fetched %d videos from YouTube\n", len(titles))
+		fmt.Printf("Fetched %d videos from YouTube\n", len(titles))
 
 		filename := pl.Name + ".md"
 		oldContent := oldFilesContent[filename] // empty if not exist
 		newContent := diffPlaylist(oldContent, titles, pl.Name)
 		updatedFiles[filename] = newContent
 
-		fmt.Printf("📄 Prepared %d lines for %s\n\n", strings.Count(newContent, "\n"), filename)
+		fmt.Printf("Prepared %d lines for %s\n\n", strings.Count(newContent, "\n"), filename)
 	}
 
 	for key, value := range updatedFiles{
@@ -78,5 +78,5 @@ func main() {
 		log.Fatalf("Failed to update Gist: %v", err)
 	}
 
-	fmt.Println("✅ Gist successfully updated with all playlists.")
+	fmt.Println("Gist successfully updated with all playlists.")
 }
