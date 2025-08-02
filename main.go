@@ -47,10 +47,10 @@ func main() {
 	}
 
 	updatedFiles := make(map[string]string)
-	oldFilenames := make(map[string]string)
-	for filename, content := range oldFilesContent {
-		oldFilenames[filename] = content
-	}
+	// oldFilenames := make(map[string]string)
+	// for filename, content := range oldFilesContent {
+	// 	oldFilenames[filename] = content
+	// }
 
 	for _, pl := range playlists {
 		fmt.Printf("Processing playlist: %q\n", pl.Name)
@@ -74,7 +74,11 @@ func main() {
 		fmt.Println(value)
 	}
 
-	if err := updateGist(gistID, pat, updatedFiles, oldFilenames); err != nil {
+	// if err := updateGist(gistID, pat, updatedFiles, oldFilenames); err != nil {
+	// 	log.Fatalf("Failed to update Gist: %v", err)
+	// }
+
+	if err := updateGist(gistID, pat, updatedFiles); err != nil {
 		log.Fatalf("Failed to update Gist: %v", err)
 	}
 
