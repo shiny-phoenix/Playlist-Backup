@@ -126,65 +126,100 @@ func diffPlaylist(oldContent string, currentTitles []string, playlistName string
 	return strings.Join(outputLines, "\n") + "\n"
 }
 
-func updateGist(gistID, pat string, updatedFiles map[string]string, oldFiles map[string]string) error {
+// func updateGist(gistID, pat string, updatedFiles map[string]string, oldFiles map[string]string) error {
+// 	client := &http.Client{}
+
+// 	// Step 1: Delete all existing .md files
+// 	for filename := range oldFiles {
+// 		if strings.HasSuffix(filename, ".md") {
+// 			fmt.Println("Deleting file:", filename)
+
+// 			deletePayload := map[string]interface{}{
+// 				"files": map[string]interface{}{
+// 					filename: nil,
+// 				},
+// 			}
+// 			deleteJSON, _ := json.Marshal(deletePayload)
+
+// 			req, _ := http.NewRequest("PATCH", "https://api.github.com/gists/"+gistID, bytes.NewBuffer(deleteJSON))
+// 			req.Header.Set("Authorization", "Bearer "+pat)
+// 			req.Header.Set("Accept", "application/vnd.github+json")
+
+// 			resp, err := client.Do(req)
+// 			if err != nil {
+// 				return fmt.Errorf("failed to delete %s: %v", filename, err)
+// 			}
+// 			defer resp.Body.Close()
+// 			if resp.StatusCode >= 300 {
+// 				body, _ := ioutil.ReadAll(resp.Body)
+// 				return fmt.Errorf("delete failed for %s: %s", filename, body)
+// 			}
+// 		}
+// 	}
+
+// 	// Step 2: Create each new file fresh
+// 	for filename, content := range updatedFiles {
+// 		fmt.Println("Creating file:", filename)
+
+// 		createPayload := map[string]interface{}{
+// 			"files": map[string]interface{}{
+// 				filename: map[string]string{"content": content},
+// 			},
+// 		}
+// 		createJSON, _ := json.Marshal(createPayload)
+
+// 		req, _ := http.NewRequest("PATCH", "https://api.github.com/gists/"+gistID, bytes.NewBuffer(createJSON))
+// 		req.Header.Set("Authorization", "Bearer "+pat)
+// 		req.Header.Set("Accept", "application/vnd.github+json")
+
+// 		resp, err := client.Do(req)
+// 		if err != nil {
+// 			return fmt.Errorf("failed to create %s: %v", filename, err)
+// 		}
+// 		defer resp.Body.Close()
+// 		if resp.StatusCode >= 300 {
+// 			body, _ := ioutil.ReadAll(resp.Body)
+// 			return fmt.Errorf("create failed for %s: %s", filename, body)
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+func updateGist(gistID, pat string, updatedFiles map[string]string) error {
 	client := &http.Client{}
 
-	// Step 1: Delete all existing .md files
-	for filename := range oldFiles {
-		if strings.HasSuffix(filename, ".md") {
-			fmt.Println("Deleting file:", filename)
+	files := map[string]interface{}{}
 
-			deletePayload := map[string]interface{}{
-				"files": map[string]interface{}{
-					filename: nil,
-				},
-			}
-			deleteJSON, _ := json.Marshal(deletePayload)
-
-			req, _ := http.NewRequest("PATCH", "https://api.github.com/gists/"+gistID, bytes.NewBuffer(deleteJSON))
-			req.Header.Set("Authorization", "Bearer "+pat)
-			req.Header.Set("Accept", "application/vnd.github+json")
-
-			resp, err := client.Do(req)
-			if err != nil {
-				return fmt.Errorf("failed to delete %s: %v", filename, err)
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode >= 300 {
-				body, _ := ioutil.ReadAll(resp.Body)
-				return fmt.Errorf("delete failed for %s: %s", filename, body)
-			}
-		}
+	// Prepare update payload for each file
+	for filename, content := range updatedFiles {
+		fmt.Println("Updating file:", filename)
+		files[filename] = map[string]string{"content": content}
 	}
 
-	// Step 2: Create each new file fresh
-	for filename, content := range updatedFiles {
-		fmt.Println("Creating file:", filename)
+	payload := map[string]interface{}{
+		"files": files,
+	}
+	jsonData, _ := json.Marshal(payload)
 
-		createPayload := map[string]interface{}{
-			"files": map[string]interface{}{
-				filename: map[string]string{"content": content},
-			},
-		}
-		createJSON, _ := json.Marshal(createPayload)
+	req, _ := http.NewRequest("PATCH", "https://api.github.com/gists/"+gistID, bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Bearer "+pat)
+	req.Header.Set("Accept", "application/vnd.github+json")
 
-		req, _ := http.NewRequest("PATCH", "https://api.github.com/gists/"+gistID, bytes.NewBuffer(createJSON))
-		req.Header.Set("Authorization", "Bearer "+pat)
-		req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to update gist: %v", err)
+	}
+	defer resp.Body.Close()
 
-		resp, err := client.Do(req)
-		if err != nil {
-			return fmt.Errorf("failed to create %s: %v", filename, err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode >= 300 {
-			body, _ := ioutil.ReadAll(resp.Body)
-			return fmt.Errorf("create failed for %s: %s", filename, body)
-		}
+	if resp.StatusCode >= 300 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return fmt.Errorf("update failed: %s", body)
 	}
 
 	return nil
 }
+
 
 func cleanSong(title string) string {
 	// Remove known invisible characters
