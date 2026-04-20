@@ -82,5 +82,5 @@ func main() {
 		log.Fatalf("Failed to update Gist: %v", err)
 	}
 
-	fmt.Println("Gist successfully updated with all playlists.")
+	fmt.Println("Gist successfully updated with all playlists")
 }
